@@ -30,11 +30,12 @@ var (
 )
 
 type Config struct {
-	Addr          string
-	BaseTargetURL string
-	Queue         *task.TaskQueue
-	Pool          *browser.Pool
-	WorkerCount   int
+	Addr            string
+	BaseTargetURL   string
+	DefaultSelector string
+	Queue           *task.TaskQueue
+	Pool            *browser.Pool
+	WorkerCount     int
 }
 
 func Run(ctx context.Context, cfg Config) error {
@@ -54,8 +55,11 @@ func Run(ctx context.Context, cfg Config) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if strings.TrimSpace(cfg.DefaultSelector) == "" {
+		cfg.DefaultSelector = defaultSelector
+	}
 
-	log.Printf("server starting addr=%s baseTargetURL=%s workers=%d", cfg.Addr, baseURL.String(), cfg.WorkerCount)
+	log.Printf("server starting addr=%s baseTargetURL=%s workers=%d defaultSelector=%s", cfg.Addr, baseURL.String(), cfg.WorkerCount, cfg.DefaultSelector)
 
 	workerCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
@@ -66,7 +70,7 @@ func Run(ctx context.Context, cfg Config) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		handleRender(w, r, cfg.Queue, baseURL)
+		handleRender(w, r, cfg.Queue, baseURL, cfg.DefaultSelector)
 	})
 
 	server := &http.Server{
@@ -96,7 +100,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 }
 
-func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue, baseURL *url.URL) {
+func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue, baseURL *url.URL, defaultSelectorValue string) {
 	start := time.Now()
 	if r.Method != http.MethodGet {
 		log.Printf("reject method=%s path=%s", r.Method, r.URL.Path)
@@ -113,7 +117,7 @@ func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue,
 
 	selector := strings.TrimSpace(r.Header.Get(selectorHeader))
 	if selector == "" {
-		selector = defaultSelector
+		selector = defaultSelectorValue
 	}
 
 	wait, err := parseWaitHeaders(r)

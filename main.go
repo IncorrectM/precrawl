@@ -30,7 +30,9 @@ func main() {
 		log.Fatal("BASE_TARGET_URL is required")
 	}
 
-	if err := server.Run(ctx, server.Config{Queue: queue, Pool: pool, WorkerCount: 2, BaseTargetURL: baseTargetURL}); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	defaultSelector := os.Getenv("DEFAULT_SELECTOR")
+
+	if err := server.Run(ctx, server.Config{Queue: queue, Pool: pool, WorkerCount: 2, BaseTargetURL: baseTargetURL, DefaultSelector: defaultSelector}); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
 }
