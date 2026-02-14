@@ -14,6 +14,7 @@ import (
 	"github.com/IncorrectM/precrawl/internal/browser"
 	"github.com/IncorrectM/precrawl/internal/prerender"
 	"github.com/IncorrectM/precrawl/internal/task"
+	"github.com/IncorrectM/precrawl/internal/transformer"
 )
 
 const (
@@ -210,6 +211,14 @@ func workerLoop(ctx context.Context, id int, queue *task.TaskQueue, pool *browse
 
 		start := time.Now()
 		html, renderErr := prerender.RenderUntil(context.Background(), pool, item.TargetURL, item.Wait, item.QuerySelector)
+		if renderErr == nil {
+			transformed, transformErr := transformer.ApplyAll(html, transformer.DefaultTransformers()...)
+			if transformErr != nil {
+				renderErr = transformErr
+			} else {
+				html = transformed
+			}
+		}
 		if item.ResultCh != nil {
 			item.ResultCh <- task.Result{HTML: html, Err: renderErr}
 			close(item.ResultCh)
