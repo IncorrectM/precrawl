@@ -8,16 +8,18 @@ import (
 )
 
 var (
-	ErrEmptyQueue   = errors.New("task queue is empty")
-	ErrEmptyURL     = errors.New("target url is empty")
-	ErrEmptyQuery   = errors.New("query selector is empty")
-	ErrNegativeWait = errors.New("wait duration must be non-negative")
+	ErrEmptyQueue          = errors.New("task queue is empty")
+	ErrEmptyURL            = errors.New("target url is empty")
+	ErrEmptyQuery          = errors.New("query selector is empty")
+	ErrNegativeWait        = errors.New("wait duration must be non-negative")
+	ErrNegativeWaitTimeout = errors.New("wait timeout must be non-negative")
 )
 
 // Task holds parameters required by prerender.RenderUntil.
 type Task struct {
 	TargetURL     string
 	Wait          time.Duration
+	WaitTimeout   time.Duration
 	QuerySelector string
 	ResultCh      chan Result
 }
@@ -52,6 +54,9 @@ func (q *TaskQueue) Enqueue(task Task) error {
 	}
 	if task.Wait < 0 {
 		return ErrNegativeWait
+	}
+	if task.WaitTimeout < 0 {
+		return ErrNegativeWaitTimeout
 	}
 
 	q.mu.Lock()

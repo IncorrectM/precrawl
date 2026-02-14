@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/IncorrectM/precrawl/internal/browser"
 	"github.com/IncorrectM/precrawl/internal/server"
@@ -32,7 +33,19 @@ func main() {
 
 	defaultSelector := os.Getenv("DEFAULT_SELECTOR")
 
-	if err := server.Run(ctx, server.Config{Queue: queue, Pool: pool, WorkerCount: 2, BaseTargetURL: baseTargetURL, DefaultSelector: defaultSelector}); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	defaultWaitTimeout := 5 * time.Second
+	if rawTimeout := os.Getenv("RENDER_TIMEOUT"); rawTimeout != "" {
+		parsed, err := time.ParseDuration(rawTimeout)
+		if err != nil {
+			log.Fatalf("invalid RENDER_TIMEOUT: %v", err)
+		}
+		defaultWaitTimeout = parsed
+	}
+	if defaultWaitTimeout < 0 {
+		log.Fatal("RENDER_TIMEOUT must be non-negative")
+	}
+
+	if err := server.Run(ctx, server.Config{Queue: queue, Pool: pool, WorkerCount: 2, BaseTargetURL: baseTargetURL, DefaultSelector: defaultSelector, DefaultWaitTimeout: defaultWaitTimeout}); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
 }

@@ -11,9 +11,11 @@ import (
 )
 
 var (
-	ErrInvalidPool  = errors.New("invalid browser pool")
-	ErrEmptyURL     = errors.New("target url is empty")
-	ErrNegativeWait = errors.New("wait duration must be non-negative")
+	ErrInvalidPool         = errors.New("invalid browser pool")
+	ErrEmptyURL            = errors.New("target url is empty")
+	ErrNegativeWait        = errors.New("wait duration must be non-negative")
+	ErrNegativeWaitTimeout = errors.New("wait timeout must be non-negative")
+	ErrWaitTimeout         = errors.New("wait timeout exceeded")
 )
 
 // Render navigates to a URL, waits, and returns the full HTML document.
@@ -23,6 +25,7 @@ func RenderUntil(
 	targetURL string,
 	wait time.Duration,
 	querySelector string,
+	waitTimeout time.Duration,
 ) (html string, err error) {
 	if pool == nil {
 		return "", ErrInvalidPool
@@ -32,6 +35,9 @@ func RenderUntil(
 	}
 	if wait < 0 {
 		return "", ErrNegativeWait
+	}
+	if waitTimeout < 0 {
+		return "", ErrNegativeWaitTimeout
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -62,11 +68,38 @@ func RenderUntil(
 	if err := chromedp.Run(
 		runCtx,
 		chromedp.Navigate(targetURL),
-		chromedp.WaitVisible(querySelector, chromedp.ByQuery),
+	); err != nil {
+		return "", err
+	}
+
+	waitTimedOut := false
+	if waitTimeout > 0 {
+		waitCtx, waitCancel := context.WithTimeout(runCtx, waitTimeout)
+		waitErr := chromedp.Run(waitCtx, chromedp.WaitVisible(querySelector, chromedp.ByQuery))
+		waitCancel()
+		if waitErr != nil {
+			if errors.Is(waitErr, context.DeadlineExceeded) && errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
+				waitTimedOut = true
+			} else {
+				return "", waitErr
+			}
+		}
+	} else {
+		if err := chromedp.Run(runCtx, chromedp.WaitVisible(querySelector, chromedp.ByQuery)); err != nil {
+			return "", err
+		}
+	}
+
+	if err := chromedp.Run(
+		runCtx,
 		chromedp.Sleep(wait),
 		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
 	); err != nil {
 		return "", err
+	}
+
+	if waitTimedOut {
+		return html, ErrWaitTimeout
 	}
 
 	return html, nil
@@ -78,5 +111,5 @@ func Render(
 	targetURL string,
 	wait time.Duration,
 ) (string, error) {
-	return RenderUntil(ctx, pool, targetURL, wait, "body")
+	return RenderUntil(ctx, pool, targetURL, wait, "body", 0)
 }

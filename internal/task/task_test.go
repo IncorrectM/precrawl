@@ -23,6 +23,10 @@ func TestQueueEnqueueValidation(t *testing.T) {
 	if err := queue.Enqueue(Task{TargetURL: "https://example.com", QuerySelector: "body", Wait: -time.Millisecond}); !errors.Is(err, ErrNegativeWait) {
 		t.Fatalf("expected ErrNegativeWait, got %v", err)
 	}
+
+	if err := queue.Enqueue(Task{TargetURL: "https://example.com", QuerySelector: "body", WaitTimeout: -time.Millisecond}); !errors.Is(err, ErrNegativeWaitTimeout) {
+		t.Fatalf("expected ErrNegativeWaitTimeout, got %v", err)
+	}
 }
 
 func TestQueueFIFOAndLen(t *testing.T) {
@@ -30,9 +34,9 @@ func TestQueueFIFOAndLen(t *testing.T) {
 
 	queue := NewQueue()
 
-	first := Task{TargetURL: "https://a.example", QuerySelector: "body", Wait: 10 * time.Millisecond}
-	second := Task{TargetURL: "https://b.example", QuerySelector: "#main", Wait: 20 * time.Millisecond}
-	third := Task{TargetURL: "https://c.example", QuerySelector: ".content", Wait: 30 * time.Millisecond}
+	first := Task{TargetURL: "https://a.example", QuerySelector: "body", Wait: 10 * time.Millisecond, WaitTimeout: 2 * time.Second}
+	second := Task{TargetURL: "https://b.example", QuerySelector: "#main", Wait: 20 * time.Millisecond, WaitTimeout: 2 * time.Second}
+	third := Task{TargetURL: "https://c.example", QuerySelector: ".content", Wait: 30 * time.Millisecond, WaitTimeout: 2 * time.Second}
 
 	if err := queue.Enqueue(first); err != nil {
 		t.Fatalf("enqueue first error: %v", err)
@@ -103,7 +107,7 @@ func TestQueueWaitDequeueReturnsTask(t *testing.T) {
 	t.Parallel()
 
 	queue := NewQueue()
-	taskItem := Task{TargetURL: "https://example.com", QuerySelector: "body", Wait: 5 * time.Millisecond}
+	taskItem := Task{TargetURL: "https://example.com", QuerySelector: "body", Wait: 5 * time.Millisecond, WaitTimeout: 2 * time.Second}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()

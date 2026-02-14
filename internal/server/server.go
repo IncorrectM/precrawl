@@ -31,12 +31,13 @@ var (
 )
 
 type Config struct {
-	Addr            string
-	BaseTargetURL   string
-	DefaultSelector string
-	Queue           *task.TaskQueue
-	Pool            *browser.Pool
-	WorkerCount     int
+	Addr               string
+	BaseTargetURL      string
+	DefaultSelector    string
+	DefaultWaitTimeout time.Duration
+	Queue              *task.TaskQueue
+	Pool               *browser.Pool
+	WorkerCount        int
 }
 
 func Run(ctx context.Context, cfg Config) error {
@@ -59,8 +60,11 @@ func Run(ctx context.Context, cfg Config) error {
 	if strings.TrimSpace(cfg.DefaultSelector) == "" {
 		cfg.DefaultSelector = defaultSelector
 	}
+	if cfg.DefaultWaitTimeout < 0 {
+		return ErrInvalidConfig
+	}
 
-	log.Printf("server starting addr=%s baseTargetURL=%s workers=%d defaultSelector=%s", cfg.Addr, baseURL.String(), cfg.WorkerCount, cfg.DefaultSelector)
+	log.Printf("server starting addr=%s baseTargetURL=%s workers=%d defaultSelector=%s defaultWaitTimeout=%s", cfg.Addr, baseURL.String(), cfg.WorkerCount, cfg.DefaultSelector, cfg.DefaultWaitTimeout)
 
 	workerCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
@@ -71,7 +75,7 @@ func Run(ctx context.Context, cfg Config) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		handleRender(w, r, cfg.Queue, baseURL, cfg.DefaultSelector)
+		handleRender(w, r, cfg.Queue, baseURL, cfg.DefaultSelector, cfg.DefaultWaitTimeout)
 	})
 
 	server := &http.Server{
@@ -101,7 +105,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 }
 
-func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue, baseURL *url.URL, defaultSelectorValue string) {
+func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue, baseURL *url.URL, defaultSelectorValue string, defaultWaitTimeout time.Duration) {
 	start := time.Now()
 	if r.Method != http.MethodGet {
 		log.Printf("reject method=%s path=%s", r.Method, r.URL.Path)
@@ -128,12 +132,13 @@ func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue,
 		return
 	}
 
-	log.Printf("request path=%s query=%s target=%s selector=%s wait=%s remote=%s", r.URL.Path, r.URL.RawQuery, targetURL, selector, wait, r.RemoteAddr)
+	log.Printf("request path=%s query=%s target=%s selector=%s wait=%s waitTimeout=%s remote=%s", r.URL.Path, r.URL.RawQuery, targetURL, selector, wait, defaultWaitTimeout, r.RemoteAddr)
 
 	resultCh := make(chan task.Result, 1)
 	taskItem := task.Task{
 		TargetURL:     targetURL,
 		Wait:          wait,
+		WaitTimeout:   defaultWaitTimeout,
 		QuerySelector: selector,
 		ResultCh:      resultCh,
 	}
@@ -210,7 +215,11 @@ func workerLoop(ctx context.Context, id int, queue *task.TaskQueue, pool *browse
 		}
 
 		start := time.Now()
-		html, renderErr := prerender.RenderUntil(context.Background(), pool, item.TargetURL, item.Wait, item.QuerySelector)
+		html, renderErr := prerender.RenderUntil(context.Background(), pool, item.TargetURL, item.Wait, item.QuerySelector, item.WaitTimeout)
+		if errors.Is(renderErr, prerender.ErrWaitTimeout) {
+			log.Printf("worker wait timeout id=%d target=%s timeout=%s duration=%s", id, item.TargetURL, item.WaitTimeout, time.Since(start))
+			renderErr = nil
+		}
 		if renderErr == nil {
 			transformed, transformErr := transformer.ApplyAll(html, transformer.DefaultTransformers()...)
 			if transformErr != nil {

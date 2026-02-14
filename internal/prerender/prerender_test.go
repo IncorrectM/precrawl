@@ -29,6 +29,10 @@ func TestRenderValidation(t *testing.T) {
 	if _, err := Render(context.Background(), pool, "https://example.com", -time.Millisecond); !errors.Is(err, ErrNegativeWait) {
 		t.Fatalf("expected ErrNegativeWait, got %v", err)
 	}
+
+	if _, err := RenderUntil(context.Background(), pool, "https://example.com", 0, "body", -time.Millisecond); !errors.Is(err, ErrNegativeWaitTimeout) {
+		t.Fatalf("expected ErrNegativeWaitTimeout, got %v", err)
+	}
 }
 
 func TestRenderAcquireTimeout(t *testing.T) {
