@@ -3,7 +3,6 @@ package prerender
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -18,11 +17,12 @@ var (
 )
 
 // Render navigates to a URL, waits, and returns the full HTML document.
-func Render(
+func RenderUntil(
 	ctx context.Context,
 	pool *browser.Pool,
 	targetURL string,
 	wait time.Duration,
+	querySelector string,
 ) (html string, err error) {
 	if pool == nil {
 		return "", ErrInvalidPool
@@ -59,23 +59,24 @@ func Render(
 		}
 	}()
 
-	start := time.Now()
 	if err := chromedp.Run(
 		runCtx,
 		chromedp.Navigate(targetURL),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Println("Before sleep")
-			return nil
-		}),
+		chromedp.WaitVisible(querySelector, chromedp.ByQuery),
 		chromedp.Sleep(wait),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Printf("After sleep, elapsed: %v", time.Since(start))
-			return nil
-		}),
 		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
 	); err != nil {
 		return "", err
 	}
 
 	return html, nil
+}
+
+func Render(
+	ctx context.Context,
+	pool *browser.Pool,
+	targetURL string,
+	wait time.Duration,
+) (string, error) {
+	return RenderUntil(ctx, pool, targetURL, wait, "body")
 }
