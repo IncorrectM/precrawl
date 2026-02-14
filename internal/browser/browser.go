@@ -15,6 +15,8 @@ var (
 	ErrDoubleReturn = errors.New("page returned more than once")
 )
 
+const BlankURL = "about:blank"
+
 // Page represents a single tab context managed by the pool.
 type Page struct {
 	Ctx    context.Context
@@ -57,7 +59,7 @@ func NewPool(parent context.Context, size int, opts ...chromedp.ExecAllocatorOpt
 }
 
 // Acquire waits for a free page or returns when ctx is done.
-func (p *Pool) Acquire(ctx context.Context) (*Page, error) {
+func (p *Pool) Acquire(ctx context.Context, initialURL string) (*Page, error) {
 	p.mu.Lock()
 	closed := p.closed
 	p.mu.Unlock()
@@ -70,8 +72,14 @@ func (p *Pool) Acquire(ctx context.Context) (*Page, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case page := <-p.pages:
+		// navigate to initial URL
+		chromedp.Run(page.Ctx, chromedp.Navigate(initialURL))
 		return page, nil
 	}
+}
+
+func (p *Pool) AcquireBlank(ctx context.Context) (*Page, error) {
+	return p.Acquire(ctx, BlankURL)
 }
 
 // Release returns a page to the pool.

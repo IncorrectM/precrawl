@@ -31,7 +31,7 @@ func TestAcquireRelease(t *testing.T) {
 		t.Fatalf("expected 2 available, got %d", got)
 	}
 
-	page, err := pool.Acquire(context.Background())
+	page, err := pool.AcquireBlank(context.Background())
 	if err != nil {
 		t.Fatalf("Acquire error: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestAcquireTimeout(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	page, err := pool.Acquire(context.Background())
+	page, err := pool.AcquireBlank(context.Background())
 	if err != nil {
 		t.Fatalf("Acquire error: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestAcquireTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	_, err = pool.Acquire(ctx)
+	_, err = pool.AcquireBlank(ctx)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline exceeded, got %v", err)
 	}
@@ -84,14 +84,14 @@ func TestCloseAndRelease(t *testing.T) {
 		t.Fatalf("NewPool error: %v", err)
 	}
 
-	page, err := pool.Acquire(context.Background())
+	page, err := pool.AcquireBlank(context.Background())
 	if err != nil {
 		t.Fatalf("Acquire error: %v", err)
 	}
 
 	pool.Close()
 
-	if _, err := pool.Acquire(context.Background()); !errors.Is(err, ErrPoolClosed) {
+	if _, err := pool.AcquireBlank(context.Background()); !errors.Is(err, ErrPoolClosed) {
 		t.Fatalf("expected ErrPoolClosed, got %v", err)
 	}
 
@@ -115,7 +115,7 @@ func TestDoubleReturn(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	page, err := pool.Acquire(context.Background())
+	page, err := pool.AcquireBlank(context.Background())
 	if err != nil {
 		t.Fatalf("Acquire error: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestAccessExampleDotCom(t *testing.T) {
 	defer pool.Close()
 	t.Log("pool created")
 
-	page, err := pool.Acquire(context.Background())
+	page, err := pool.AcquireBlank(context.Background())
 	if err != nil {
 		t.Fatalf("Acquire error: %v", err)
 	}
