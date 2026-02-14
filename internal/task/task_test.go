@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -95,5 +96,44 @@ func TestQueueEmptyErrors(t *testing.T) {
 
 	if _, err := queue.Peek(); !errors.Is(err, ErrEmptyQueue) {
 		t.Fatalf("expected ErrEmptyQueue from peek, got %v", err)
+	}
+}
+
+func TestQueueWaitDequeueReturnsTask(t *testing.T) {
+	t.Parallel()
+
+	queue := NewQueue()
+	taskItem := Task{TargetURL: "https://example.com", QuerySelector: "body", Wait: 5 * time.Millisecond}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		if err := queue.Enqueue(taskItem); err != nil {
+			t.Errorf("enqueue error: %v", err)
+		}
+	}()
+
+	got, err := queue.WaitDequeue(ctx)
+	if err != nil {
+		t.Fatalf("WaitDequeue error: %v", err)
+	}
+	if got != taskItem {
+		t.Fatalf("expected task %+v, got %+v", taskItem, got)
+	}
+}
+
+func TestQueueWaitDequeueContextDone(t *testing.T) {
+	t.Parallel()
+
+	queue := NewQueue()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	_, err := queue.WaitDequeue(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded, got %v", err)
 	}
 }

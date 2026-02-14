@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -18,17 +19,27 @@ type Task struct {
 	TargetURL     string
 	Wait          time.Duration
 	QuerySelector string
+	ResultCh      chan Result
+}
+
+// Result represents the outcome of executing a task.
+type Result struct {
+	HTML string
+	Err  error
 }
 
 // TaskQueue stores tasks in FIFO order.
 type TaskQueue struct {
-	mu    sync.Mutex
-	items []Task
+	mu       sync.Mutex
+	items    []Task
+	notEmpty *sync.Cond
 }
 
 // NewQueue returns an empty task queue.
 func NewQueue() *TaskQueue {
-	return &TaskQueue{items: make([]Task, 0)}
+	queue := &TaskQueue{items: make([]Task, 0)}
+	queue.notEmpty = sync.NewCond(&queue.mu)
+	return queue
 }
 
 // Enqueue appends a task to the queue.
@@ -46,6 +57,7 @@ func (q *TaskQueue) Enqueue(task Task) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.items = append(q.items, task)
+	q.notEmpty.Signal()
 	return nil
 }
 
@@ -56,6 +68,40 @@ func (q *TaskQueue) Dequeue() (Task, error) {
 
 	if len(q.items) == 0 {
 		return Task{}, ErrEmptyQueue
+	}
+
+	item := q.items[0]
+	q.items[0] = Task{}
+	q.items = q.items[1:]
+	return item, nil
+}
+
+// WaitDequeue blocks until a task is available or ctx is done.
+func (q *TaskQueue) WaitDequeue(ctx context.Context) (Task, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			q.mu.Lock()
+			q.notEmpty.Broadcast()
+			q.mu.Unlock()
+		case <-done:
+		}
+	}()
+	defer close(done)
+
+	for len(q.items) == 0 {
+		if err := ctx.Err(); err != nil {
+			return Task{}, err
+		}
+		q.notEmpty.Wait()
 	}
 
 	item := q.items[0]
