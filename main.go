@@ -26,23 +26,23 @@ func main() {
 	}
 	defer pool.Close()
 
-	baseTargetURL := os.Getenv("BASE_TARGET_URL")
+	baseTargetURL := os.Getenv("PRECRAWL_BASE_TARGET_URL")
 	if baseTargetURL == "" {
-		log.Fatal("BASE_TARGET_URL is required")
+		log.Fatal("PRECRAWL_BASE_TARGET_URL is required")
 	}
 
-	defaultSelector := os.Getenv("DEFAULT_SELECTOR")
+	defaultSelector := os.Getenv("PRECRAWL_DEFAULT_SELECTOR")
 
 	defaultWaitTimeout := 5 * time.Second
-	if rawTimeout := os.Getenv("RENDER_TIMEOUT"); rawTimeout != "" {
+	if rawTimeout := os.Getenv("PRECRAWL_RENDER_TIMEOUT"); rawTimeout != "" {
 		parsed, err := time.ParseDuration(rawTimeout)
 		if err != nil {
-			log.Fatalf("invalid RENDER_TIMEOUT: %v", err)
+			log.Fatalf("invalid PRECRAWL_RENDER_TIMEOUT: %v", err)
 		}
 		defaultWaitTimeout = parsed
 	}
 	if defaultWaitTimeout < 0 {
-		log.Fatal("RENDER_TIMEOUT must be non-negative")
+		log.Fatal("PRECRAWL_RENDER_TIMEOUT must be non-negative")
 	}
 
 	if err := server.Run(ctx, server.Config{Queue: queue, Pool: pool, WorkerCount: 2, BaseTargetURL: baseTargetURL, DefaultSelector: defaultSelector, DefaultWaitTimeout: defaultWaitTimeout}); err != nil && !errors.Is(err, http.ErrServerClosed) {

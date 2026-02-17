@@ -4,7 +4,7 @@ A small Go service that pre-renders pages through a headless browser and returns
 
 ## Features
 
-- Proxy-style rendering: GET /path?query=1 renders ${BASE_TARGET_URL}/path?query=1
+- Proxy-style rendering: GET /path?query=1 renders ${PRECRAWL_BASE_TARGET_URL}/path?query=1
 - Selector wait with timeout (returns HTML even if the selector wait times out)
 - Optional post-wait sleep to let the page settle
 - Built-in transformers: ImageURLPruner and ClassPruner
@@ -23,24 +23,24 @@ A small Go service that pre-renders pages through a headless browser and returns
 
 Example:
 
-- BASE_TARGET_URL=https://example.com go run .
+- PRECRAWL_BASE_TARGET_URL=https://example.com go run .
 - curl "http://localhost:8080/pages/index?id=212"
 
 ## Configuration
 
 Environment variables:
 
-- BASE_TARGET_URL (required)
+- PRECRAWL_BASE_TARGET_URL (required)
   The origin used to build the target URL for rendering.
-- DEFAULT_SELECTOR (optional)
+- PRECRAWL_DEFAULT_SELECTOR (optional)
   Fallback CSS selector to wait for when the request does not specify a selector header.
   Default: body
-- RENDER_TIMEOUT (optional)
+- PRECRAWL_RENDER_TIMEOUT (optional)
   Selector wait timeout, e.g. 5s, 200ms. Default: 5s
 
 Runtime behavior:
 
-- The request path and query are appended to BASE_TARGET_URL.
+- The request path and query are appended to PRECRAWL_BASE_TARGET_URL.
 - Only GET is supported.
 - Selector wait timeout returns HTML with a warning in logs.
 
@@ -69,4 +69,4 @@ These are currently enabled by default and not configurable.
 ## Notes
 
 - If the selector wait times out, the service still returns the HTML captured after timeout.
-- Long running pages may need a larger RENDER_TIMEOUT.
+- Long running pages may need a larger PRECRAWL_RENDER_TIMEOUT.
