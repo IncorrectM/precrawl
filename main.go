@@ -16,9 +16,11 @@ import (
 )
 
 func main() {
+	// Graceful shutdown on interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// initialize task queue and browser pool
 	queue := task.NewQueue()
 	pool, err := browser.NewPool(ctx, 2)
 	if err != nil {
@@ -26,6 +28,7 @@ func main() {
 	}
 	defer pool.Close()
 
+	// read configuration from environment variables
 	baseTargetURL := os.Getenv("PRECRAWL_BASE_TARGET_URL")
 	if baseTargetURL == "" {
 		log.Fatal("PRECRAWL_BASE_TARGET_URL is required")
@@ -45,6 +48,7 @@ func main() {
 		log.Fatal("PRECRAWL_RENDER_TIMEOUT must be non-negative")
 	}
 
+	// start the server
 	if err := server.Run(ctx, server.Config{Queue: queue, Pool: pool, WorkerCount: 2, BaseTargetURL: baseTargetURL, DefaultSelector: defaultSelector, DefaultWaitTimeout: defaultWaitTimeout}); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}

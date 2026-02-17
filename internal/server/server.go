@@ -41,6 +41,7 @@ type Config struct {
 }
 
 func Run(ctx context.Context, cfg Config) error {
+	// initialize and validate configuration
 	if cfg.Queue == nil || cfg.Pool == nil {
 		return ErrInvalidConfig
 	}
@@ -66,6 +67,7 @@ func Run(ctx context.Context, cfg Config) error {
 
 	log.Printf("server starting addr=%s baseTargetURL=%s workers=%d defaultSelector=%s defaultWaitTimeout=%s", cfg.Addr, baseURL.String(), cfg.WorkerCount, cfg.DefaultSelector, cfg.DefaultWaitTimeout)
 
+	// launch worker goroutines
 	workerCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
 
@@ -73,6 +75,7 @@ func Run(ctx context.Context, cfg Config) error {
 		go workerLoop(workerCtx, i+1, cfg.Queue, cfg.Pool)
 	}
 
+	// launch HTTP server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleRender(w, r, cfg.Queue, baseURL, cfg.DefaultSelector, cfg.DefaultWaitTimeout)
@@ -89,6 +92,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}()
 
 	select {
+	// graceful shutdown on context cancellation
 	case <-ctx.Done():
 		log.Printf("server shutting down: %v", ctx.Err())
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -99,6 +103,7 @@ func Run(ctx context.Context, cfg Config) error {
 			return nil
 		}
 		return err
+	// server error
 	case err := <-errCh:
 		log.Printf("server stopped: %v", err)
 		return err
@@ -107,12 +112,14 @@ func Run(ctx context.Context, cfg Config) error {
 
 func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue, baseURL *url.URL, defaultSelectorValue string, defaultWaitTimeout time.Duration) {
 	start := time.Now()
+	// only proxy GET requests
 	if r.Method != http.MethodGet {
 		log.Printf("reject method=%s path=%s", r.Method, r.URL.Path)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// from 'this/path?query' to 'target/path?query'
 	targetURL, err := buildTargetURL(baseURL, r.URL)
 	if err != nil {
 		log.Printf("invalid target url path=%s query=%s err=%v", r.URL.Path, r.URL.RawQuery, err)
@@ -120,6 +127,7 @@ func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue,
 		return
 	}
 
+	// read selector and wait from headers
 	selector := strings.TrimSpace(r.Header.Get(selectorHeader))
 	if selector == "" {
 		selector = defaultSelectorValue
@@ -134,6 +142,7 @@ func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue,
 
 	log.Printf("request path=%s query=%s target=%s selector=%s wait=%s waitTimeout=%s remote=%s", r.URL.Path, r.URL.RawQuery, targetURL, selector, wait, defaultWaitTimeout, r.RemoteAddr)
 
+	// publish task
 	resultCh := make(chan task.Result, 1)
 	taskItem := task.Task{
 		TargetURL:     targetURL,
@@ -150,6 +159,7 @@ func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue,
 	}
 
 	select {
+	// request done
 	case result := <-resultCh:
 		if result.Err != nil {
 			log.Printf("render failed target=%s err=%v duration=%s", targetURL, result.Err, time.Since(start))
@@ -159,6 +169,7 @@ func handleRender(w http.ResponseWriter, r *http.Request, queue *task.TaskQueue,
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(result.HTML))
 		log.Printf("render ok target=%s bytes=%d duration=%s", targetURL, len(result.HTML), time.Since(start))
+	// canceled
 	case <-r.Context().Done():
 		log.Printf("request canceled target=%s err=%v duration=%s", targetURL, r.Context().Err(), time.Since(start))
 		http.Error(w, "request canceled", http.StatusRequestTimeout)
@@ -204,6 +215,7 @@ func buildTargetURL(baseURL *url.URL, reqURL *url.URL) (string, error) {
 func workerLoop(ctx context.Context, id int, queue *task.TaskQueue, pool *browser.Pool) {
 	log.Printf("worker started id=%d", id)
 	for {
+		// pick a task from the queue
 		item, err := queue.WaitDequeue(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -214,6 +226,7 @@ func workerLoop(ctx context.Context, id int, queue *task.TaskQueue, pool *browse
 			continue
 		}
 
+		// request results in the browser and apply transformations
 		start := time.Now()
 		html, renderErr := prerender.RenderUntil(context.Background(), pool, item.TargetURL, item.Wait, item.QuerySelector, item.WaitTimeout)
 		if errors.Is(renderErr, prerender.ErrWaitTimeout) {
@@ -228,6 +241,8 @@ func workerLoop(ctx context.Context, id int, queue *task.TaskQueue, pool *browse
 				html = transformed
 			}
 		}
+
+		// push results to the result channel if exists, and log the outcome
 		if item.ResultCh != nil {
 			item.ResultCh <- task.Result{HTML: html, Err: renderErr}
 			close(item.ResultCh)
