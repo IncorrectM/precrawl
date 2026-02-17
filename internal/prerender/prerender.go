@@ -27,6 +27,7 @@ func RenderUntil(
 	querySelector string,
 	waitTimeout time.Duration,
 ) (html string, err error) {
+	// validate inputs
 	if pool == nil {
 		return "", ErrInvalidPool
 	}
@@ -43,6 +44,7 @@ func RenderUntil(
 		ctx = context.Background()
 	}
 
+	// acquire a browser page from the pool
 	page, err := pool.AcquireBlank(ctx)
 	if err != nil {
 		return "", err
@@ -59,6 +61,7 @@ func RenderUntil(
 
 	go func() {
 		select {
+		// gracefully handle context cancellation to ensure the browser page is released
 		case <-ctx.Done():
 			cancel()
 		case <-runCtx.Done():
@@ -72,6 +75,7 @@ func RenderUntil(
 		return "", err
 	}
 
+	// wait for the specified element to become visible
 	waitTimedOut := false
 	if waitTimeout > 0 {
 		waitCtx, waitCancel := context.WithTimeout(runCtx, waitTimeout)
@@ -92,7 +96,7 @@ func RenderUntil(
 
 	if err := chromedp.Run(
 		runCtx,
-		chromedp.Sleep(wait),
+		chromedp.Sleep(wait), // ensure any additional content has time to load
 		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
 	); err != nil {
 		return "", err
