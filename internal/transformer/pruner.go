@@ -39,6 +39,10 @@ func (p *ImageURLPruner) Transform(input string) (string, error) {
 	return buf.String(), nil
 }
 
+func (p *ImageURLPruner) Name() string {
+	return "ImageURLPruner"
+}
+
 func NewImageURLPruner(keepAlt bool) *ImageURLPruner {
 	return &ImageURLPruner{keepAlt: keepAlt}
 }
@@ -74,6 +78,10 @@ func (p *ClassPruner) Transform(input string) (string, error) {
 	return buf.String(), nil
 }
 
+func (p *ClassPruner) Name() string {
+	return "ClassPruner"
+}
+
 func NewClassPruner() *ClassPruner {
 	return &ClassPruner{}
 }
@@ -107,6 +115,10 @@ func (p *StylePruner) Transform(input string) (string, error) {
 	var buf strings.Builder
 	html.Render(&buf, doc)
 	return buf.String(), nil
+}
+
+func (p *StylePruner) Name() string {
+	return "StylePruner"
 }
 
 func NewStylePruner() *StylePruner {

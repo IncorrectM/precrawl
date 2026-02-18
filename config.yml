@@ -1,0 +1,7 @@
+base_target_url: "https://www.gogoday.com"
+default_wait_timeout: 10ms
+default_selector: "body"
+transformers:
+  - "ClassPruner"
+  - "StylePruner"
+  - "ImageURLPruner"

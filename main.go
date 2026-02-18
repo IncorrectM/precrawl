@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/IncorrectM/precrawl/internal/browser"
+	"github.com/IncorrectM/precrawl/internal/config"
 	"github.com/IncorrectM/precrawl/internal/server"
 	"github.com/IncorrectM/precrawl/internal/task"
+	"github.com/IncorrectM/precrawl/internal/transformer"
 )
 
 func main() {
@@ -30,9 +32,6 @@ func main() {
 
 	// read configuration from environment variables
 	baseTargetURL := os.Getenv("PRECRAWL_BASE_TARGET_URL")
-	if baseTargetURL == "" {
-		log.Fatal("PRECRAWL_BASE_TARGET_URL is required")
-	}
 
 	defaultSelector := os.Getenv("PRECRAWL_DEFAULT_SELECTOR")
 
@@ -48,8 +47,51 @@ func main() {
 		log.Fatal("PRECRAWL_RENDER_TIMEOUT must be non-negative")
 	}
 
+	// by default, use all transformers
+	transformers := transformer.DefaultTransformers()
+
+	// read configuration from config.yml
+	// this overrides environment variables if present
+	configData, err := os.ReadFile("config.yml")
+	if err != nil {
+		log.Printf("warning: failed to read config.yml: %v", err)
+	} else {
+		config, err := config.LoadConfig(configData)
+		if err != nil {
+			log.Printf("warning: failed to parse config.yml: %v", err)
+		}
+		if config.BaseTargetURL != nil {
+			baseTargetURL = *config.BaseTargetURL
+		}
+		if config.DefaultSelector != nil {
+			defaultSelector = *config.DefaultSelector
+		}
+		if config.DefaultWaitTimeout != nil {
+			parsed, err := time.ParseDuration(*config.DefaultWaitTimeout)
+			if err != nil {
+				log.Fatalf("invalid PRECRAWL_RENDER_TIMEOUT in config.yml: %v", err)
+			}
+			defaultWaitTimeout = parsed
+		}
+		if config.Transformers != nil {
+			transformers = transformer.FromNames(*config.Transformers...)
+		}
+	}
+
+	// validate configuration
+	if baseTargetURL == "" {
+		log.Fatal("PRECRAWL_BASE_TARGET_URL is required")
+	}
+
 	// start the server
-	if err := server.Run(ctx, server.Config{Queue: queue, Pool: pool, WorkerCount: 2, BaseTargetURL: baseTargetURL, DefaultSelector: defaultSelector, DefaultWaitTimeout: defaultWaitTimeout}); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := server.Run(ctx, server.Config{
+		Queue:              queue,
+		Pool:               pool,
+		WorkerCount:        2,
+		BaseTargetURL:      baseTargetURL,
+		DefaultSelector:    defaultSelector,
+		DefaultWaitTimeout: defaultWaitTimeout,
+	}, transformers); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
 }

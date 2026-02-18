@@ -40,7 +40,7 @@ type Config struct {
 	WorkerCount        int
 }
 
-func Run(ctx context.Context, cfg Config) error {
+func Run(ctx context.Context, cfg Config, transformers []transformer.Transformer) error {
 	// initialize and validate configuration
 	if cfg.Queue == nil || cfg.Pool == nil {
 		return ErrInvalidConfig
@@ -72,7 +72,7 @@ func Run(ctx context.Context, cfg Config) error {
 	defer cancelWorkers()
 
 	for i := 0; i < cfg.WorkerCount; i++ {
-		go workerLoop(workerCtx, i+1, cfg.Queue, cfg.Pool)
+		go workerLoop(workerCtx, i+1, cfg.Queue, cfg.Pool, transformers)
 	}
 
 	// launch HTTP server
@@ -212,8 +212,17 @@ func buildTargetURL(baseURL *url.URL, reqURL *url.URL) (string, error) {
 	return baseURL.ResolveReference(ref).String(), nil
 }
 
-func workerLoop(ctx context.Context, id int, queue *task.TaskQueue, pool *browser.Pool) {
+func transformersToNames(transformers []transformer.Transformer) []string {
+	var names []string
+	for _, t := range transformers {
+		names = append(names, t.Name())
+	}
+	return names
+}
+
+func workerLoop(ctx context.Context, id int, queue *task.TaskQueue, pool *browser.Pool, transformers []transformer.Transformer) {
 	log.Printf("worker started id=%d", id)
+	log.Printf("worker config id=%d transformers=%v", id, transformersToNames(transformers))
 	for {
 		// pick a task from the queue
 		item, err := queue.WaitDequeue(ctx)
@@ -234,7 +243,7 @@ func workerLoop(ctx context.Context, id int, queue *task.TaskQueue, pool *browse
 			renderErr = nil
 		}
 		if renderErr == nil {
-			transformed, transformErr := transformer.ApplyAll(html, transformer.DefaultTransformers()...)
+			transformed, transformErr := transformer.ApplyAll(html, transformers...)
 			if transformErr != nil {
 				renderErr = transformErr
 			} else {
