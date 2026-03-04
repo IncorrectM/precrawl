@@ -50,6 +50,9 @@ func main() {
 	// by default, use all transformers
 	transformers := transformer.DefaultTransformers()
 
+	// by default, use 2 workers to process the queue
+	workerCount := 2
+
 	// read configuration from config.yml
 	// this overrides environment variables if present
 	configData, err := os.ReadFile("config.yml")
@@ -76,6 +79,10 @@ func main() {
 		if config.Transformers != nil {
 			transformers = transformer.FromNames(*config.Transformers...)
 		}
+		if config.WorkerCount != nil && *config.WorkerCount > 0 {
+			log.Printf("overriding worker count to %d from config.yml", *config.WorkerCount)
+			workerCount = *config.WorkerCount
+		}
 	}
 
 	// validate configuration
@@ -87,7 +94,7 @@ func main() {
 	if err := server.Run(ctx, server.Config{
 		Queue:              queue,
 		Pool:               pool,
-		WorkerCount:        2,
+		WorkerCount:        workerCount,
 		BaseTargetURL:      baseTargetURL,
 		DefaultSelector:    defaultSelector,
 		DefaultWaitTimeout: defaultWaitTimeout,

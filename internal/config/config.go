@@ -12,6 +12,7 @@ type PreCrawlConfig struct {
 	DefaultSelector    *string   `yaml:"default_selector,omitempty"`
 	DefaultWaitTimeout *string   `yaml:"default_wait_timeout,omitempty"`
 	Transformers       *[]string `yaml:"transformers,omitempty"`
+	WorkerCount        *int      `yaml:"worker_count,omitempty"`
 }
 
 var posibleTransformerTypes = []string{

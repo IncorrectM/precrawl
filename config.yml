@@ -5,3 +5,4 @@ transformers:
   - "ClassPruner"
   - "StylePruner"
   - "ImageURLPruner"
+worker_count: 10
