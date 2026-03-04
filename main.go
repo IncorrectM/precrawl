@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -80,10 +81,17 @@ func main() {
 			transformers = transformer.FromNames(*config.Transformers...)
 		}
 		if config.WorkerCount != nil && *config.WorkerCount > 0 {
-			log.Printf("overriding worker count to %d from config.yml", *config.WorkerCount)
 			workerCount = *config.WorkerCount
 		}
 	}
+
+	// read configuration from command-line flags
+	workerCountFlag := flag.Int("workers", workerCount, "number of worker goroutines to process the queue")
+	baseTargetURLFlag := flag.String("base-url", baseTargetURL, "base target URL for rendering")
+	defaultSelectorFlag := flag.String("default-selector", defaultSelector, "default CSS selector to wait for during rendering")
+	defaultWaitTimeoutFlag := flag.Duration("default-wait-timeout", defaultWaitTimeout, "default wait timeout for rendering (e.g. 5s, 500ms)")
+
+	flag.Parse()
 
 	// validate configuration
 	if baseTargetURL == "" {
@@ -94,10 +102,10 @@ func main() {
 	if err := server.Run(ctx, server.Config{
 		Queue:              queue,
 		Pool:               pool,
-		WorkerCount:        workerCount,
-		BaseTargetURL:      baseTargetURL,
-		DefaultSelector:    defaultSelector,
-		DefaultWaitTimeout: defaultWaitTimeout,
+		WorkerCount:        *workerCountFlag,
+		BaseTargetURL:      *baseTargetURLFlag,
+		DefaultSelector:    *defaultSelectorFlag,
+		DefaultWaitTimeout: *defaultWaitTimeoutFlag,
 	}, transformers); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
