@@ -71,6 +71,7 @@ func RenderUntil(
 	if err := chromedp.Run(
 		runCtx,
 		chromedp.Navigate(targetURL),
+		chromedp.WaitReady("body", chromedp.ByQuery), // ensure DOM is ready
 	); err != nil {
 		return "", err
 	}
