@@ -1,11 +1,11 @@
+# Go build settings
+GOOS_LINUX := linux
+GOARCH_AMD64 := amd64
+GOARCH_ARM64 := arm64
+CGO := 0
+
 linux:
-	export GOOS=linux
-	export GOARCH=amd64    # 目标 CPU 架构
-	export CGO_ENABLED=0   # 避免依赖 C 库，简化二进制
-	go build -o precrawl-linux-amd64 main.go
+	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_AMD64) CGO_ENABLED=$(CGO) go build -o precrawl-linux-amd64 main.go
 
 linux-arm64:
-	export GOOS=linux
-	export GOARCH=arm64    # 目标 CPU 架构
-	export CGO_ENABLED=0   # 避免依赖 C 库，简化二进制
-	go build -o precrawl-linux-arm64 main.go
+	GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH_ARM64) CGO_ENABLED=$(CGO) go build -o precrawl-linux-arm64 main.go
